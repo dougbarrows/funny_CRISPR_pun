@@ -236,7 +236,7 @@ def grna_finder(fasta_dict,cas_dict,gc_upper_bound,gc_lower_bound):
                 grna_dict['name'] = cas
 
             # delete 100% gRNA matches by first populating a list of deletion indices
-            print('\nRemoving gRNAs that 100% overlap... \ncuz who needs them, amiright?\n')
+            print('\nPopulating list of',cas,'gRNAs that 100% overlap... \ncuz who needs them, amiright?\n')
             deletion_index = []
             for grna_seq in grna_counter:
                 seq_count = grna_counter[grna_seq]
@@ -247,14 +247,16 @@ def grna_finder(fasta_dict,cas_dict,gc_upper_bound,gc_lower_bound):
             # highest to lowest
             deletion_index.sort(reverse=True)
 
-            print('Removed',len(deletion_index),cas,'gRNAs that have 100% similarity to another.')
             print('Removed',gc_removal_count,cas,'gRNAs that exceed GC upper boundary:',gc_upper_bound)
             print('Removed',at_removal_count,cas,'gRNAs that exceed GC lower boundary:',gc_lower_bound)
 
             # delete the largest index first and work through the rest
-            for index in deletion_index:
-                del grna_dict_list[index]
+    for index in deletion_index:
+        del grna_dict_list[index]
+
+        print('Removed',len(deletion_index),'gRNAs that have 100% similarity to another.')
         print('\n'+str(len(grna_dict_list)),'valid gRNAs.')
+
     return grna_dict_list
 
 
