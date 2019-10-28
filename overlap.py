@@ -1,14 +1,18 @@
 import pyranges as pr
 import pandas as pd
 
-user_bed_path = "testTSSfile.bed"
-guide_loc_path = "ch9_hg19.txt"
+user_bed_path = "test_files/testTSSfile.bed"
+guide_loc_path = "test_files/ch9_hg38_mina_sub.txt"
 upstream = 100
 downstream = 50
+sort_by = 'MIT_specificity'
 
-range_overlap(user_bed_path = user_bed_path, guide_loc_path = guide_loc_path, output_name = "mina_testFile", upstream = upstream, downstream = downstream)
+# sort_by can be either 'Doench2016', 'Moreno_Matos', or 'MIT_specificity'
 
-def range_overlap(user_bed_path, guide_loc_path, output_name, upstream, downstream):
+range_overlap(user_bed_path = user_bed_path, guide_loc_path = guide_loc_path, output_name = "mina_sub_testFile_MIT_with_default", upstream = upstream, downstream = downstream, sort_by = sort_by)
+
+def range_overlap(user_bed_path, guide_loc_path, output_name, upstream, downstream, sort_by):
+        
     
     user_bed = pd.read_csv(user_bed_path, sep = '\t', header = None) # important: this assumes that hte bed file has no column names
 
@@ -50,7 +54,32 @@ def range_overlap(user_bed_path, guide_loc_path, output_name, upstream, downstre
     column_names_gloc_list_str[0:3] = ['Chromosome', 'Start', 'End']
     guide_locs.columns = column_names_gloc_list_str
     guide_locs_noNaN = guide_locs.fillna(0)
-    guide_locs_pyR = pr.PyRanges(guide_locs_noNaN)
+    
+    guide_locs_noNaN[['Doench2016_perc','Doench2016_score']] = guide_locs_noNaN.fusi.str.split('%', expand=True) 
+    guide_locs_noNaN['Doench2016_score'] = guide_locs_noNaN['Doench2016_score'].str.replace(r"[\(\)]","") 
+    guide_locs_noNaN[['moreno_matos_perc','moreno_matos_score']] = guide_locs_noNaN.crisprScan.str.split('%', expand=True)
+    guide_locs_noNaN['moreno_matos_score'] = guide_locs_noNaN['moreno_matos_score'].str.replace(r"[\(\)]","")
+    guide_locs_noNaN[['MIT_specificity']] = guide_locs_noNaN[['scoreDesc']]
+    guide_locs_noNaN['MIT_specificity'] = guide_locs_noNaN['MIT_specificity'].str.replace(r"[A-Za-z\s\.\-]+","0")
+    
+    guide_locs_noNaN[["Doench2016_perc", "Doench2016_score", "moreno_matos_perc", "moreno_matos_score" ,"MIT_specificity"]] = guide_locs_noNaN[["Doench2016_perc", "Doench2016_score", "moreno_matos_perc", "moreno_matos_score" ,"MIT_specificity"]].apply(pd.to_numeric)
+    
+    if sort_by not in ['Doench2016', 'Moreno_Matos', 'MIT_specificity']:
+        if (sort_by == "Doench2016"):
+            guide_locs_noNaN_sort = guide_locs_noNaN.sort_values("Doench2016_perc", ascending = False)
+
+        if (sort_by == "Moreno_Matos"):
+            guide_locs_noNaN_sort = guide_locs_noNaN.sort_values("moreno_matos_perc", ascending = False)
+
+        if (sort_by == "MIT_specificity"):
+            guide_locs_noNaN_sort = guide_locs_noNaN.sort_values("MIT_specificity", ascending = False)
+    else:
+        print("The sort_by argument must be 'Doench2016', 'Moreno_Matos', or 'MIT_specificity', becuase you failed to comply the default ('Doench2016') will be used")
+        guide_locs_noNaN_sort = guide_locs_noNaN.sort_values("Doench2016_perc", ascending = False)
+        
+    guide_locs_noNaN_sort_select = guide_locs_noNaN_sort.iloc[ : ,[0,1,2,3,4,5,6,7,20,21,22,23,24]]
+    
+    guide_locs_pyR = pr.PyRanges(guide_locs_noNaN_sort_select)
 
 
     guide_locs_pyR_overlap = guide_locs_pyR.overlap(user_bed_pyR_merge)
@@ -91,3 +120,5 @@ def range_overlap(user_bed_path, guide_loc_path, output_name, upstream, downstre
     df_user_minus["empt2"] = 0
     df_user_minus = df_user_minus[["Chromosome", "Start", "End", "empty1", "empt2", "Strand"]]
     df_user_minus.to_csv("user_minus_testSet.txt", sep = '\t', header = None, index = False)
+
+    
