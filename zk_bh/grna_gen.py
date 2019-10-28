@@ -495,7 +495,15 @@ def hunters(cas_file,cas_prot,fasta,score,gc_lower,gc_upper,min_index,max_index)
     print('Execution finished:',str(end_time))
     print('Execution time:',str(end-start))
 
-    exit('cat.txt')
+    while True:
+        try:
+            with open('cat.txt','r') as file:
+                print()
+            exit('cat.txt')
+            break
+        except FileNotFoundError:
+            break
+
     sys.exit(0)
 
 
