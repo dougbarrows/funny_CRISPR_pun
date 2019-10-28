@@ -5,6 +5,7 @@ import argparse, re
 
 parser = argparse.ArgumentParser(description='Imports fasta, extracts possible gRNAs')
 parser.add_argument('-f','--fasta',required=True,help='Fasta file to extract gRNAs from')
+parser.add_argument('-s','--score',default=0,help='Lower boundary for off target scores, default = 0')
 parser.add_argument('--cas',required=True,help='Cas protein to extract from tab delimitted list of Cas protein parameters - must exactly match name')
 parser.add_argument('--cas_list',required=True,help='Tab delimitted list of Cas protein parameters')
 parser.add_argument('--gc_upper',default=.8,help='GC content upper bound (in decimal) of gRNA sequences to not consider, default = .8')
@@ -16,12 +17,12 @@ def cas2dict(cas_prot_tsv,cas):
 
     # import a cas protein tsv to get cas specific information
     with open(cas_prot_tsv, 'r') as cas_file:
-        cas_list = []
         for line in cas_file:
             # prep the lines to work with by removing irrelevant white space
             if line[0] != '#':
                 if line[-1] == '\n':
                     line = line.rstrip()
+
                 # populate the dictionary of cas protein information
                 cas_param = line.split('\t')
                 if cas_param[0] == cas:
@@ -32,11 +33,22 @@ def cas2dict(cas_prot_tsv,cas):
                     proximal_nt = cas_param[4].split(',')
                     middle_nt = cas_param[5].split(',')
                     distal_nt = cas_param[6].split(',')
+                    mm_toler = int(cas_param[7])
+                    prox_toler = int(cas_param[8])
+                    dint_toler = cas_param[9]
+                    prox_weight = float(cas_param[10])
+                    mid_weight = float(cas_param[11])
+                    dis_weight = float(cas_param[12])
+
+                    # split the boundaries in the cas protein tsv into ints
                     for i in range(2):
                         proximal_nt[i] = int(proximal_nt[i])
                         middle_nt[i] = int(middle_nt[i])
                         distal_nt[i] = int(distal_nt[i])
-                    cas_list.append(pam, pam_orient, grna_len, proximal_nt, middle_nt, distal_nt)
+
+                    cas_list = [pam, pam_orient, grna_len, proximal_nt, middle_nt, \
+                            distal_nt, mm_toler, prox_toler, dint_toler, prox_weight, \
+                            mid_weight, dis_weight]
 
     return cas_list
 
@@ -71,7 +83,8 @@ def fasta2dict(fasta_file):
             if seq[-1] is '\n' or '\r':
                 seq = seq.rstrip()
 
-            # prepares dictionaries for each gene with description, seq, rvcmpl_seq, and codons
+            # prepares dictionaries for each gene with description, seq, rvcmpl_seq, \
+            # and codons
             fasta_dict[gene] = {}
             if descrip == '\n':
                 fasta_dict[gene]['description'] = None
@@ -82,6 +95,8 @@ def fasta2dict(fasta_file):
     return fasta_dict
 
 
+# populates a list of dictionaries of all possible gRNAs for the sequences submitted
+# remove any that don't fit our criteria
 def grna_finder(fasta_dict,cas,gc_upper_bound,gc_lower_bound):
 
     # dict for translating ambiguous nucleotides
@@ -163,7 +178,7 @@ def grna_finder(fasta_dict,cas,gc_upper_bound,gc_lower_bound):
             match_info = [(match.start(1), match.end(1), match.group(1)[len(pam):], match.group(1)[:len(pam)]) for match in grna_matches]
             rev_match_info = [(rev_match.start(1), rev_match.end(1), rev_match.group(1)[:grna_length], rev_match.group(1)[grna_length:]) for rev_match in rev_grna_matches]
 
-        print('\n'+str(len(match_info)+len(rev_match_info)),'potential',cas,'gRNAs that match its PAM requirements.')
+        print('\n'+str(len(match_info)+len(rev_match_info)),'potential gRNAs.')
         # create a new index to populate index values for deletion from the compiled dict
         # we will be deleting any gRNA that is a complete match cuz who wants a 100% off \
         # target ( if it's you, then whatever dude, go figure your life out )
@@ -199,10 +214,11 @@ def grna_finder(fasta_dict,cas,gc_upper_bound,gc_lower_bound):
             grna_dict['grna_seq'] = grna[2]
             grna_dict['strand'] = '+'
             grna_dict['pam'] = grna[3]
-            grna_dict['name'] = cas
+           # grna_dict['name'] = cas
 
         # now continue with the reverse sequences
         for grna in rev_match_info:
+            # removing values based on GC bounds
             g_count = grna[2].count('G')
             c_count = grna[2].count('C')
             gc_count = g_count + c_count
@@ -213,16 +229,14 @@ def grna_finder(fasta_dict,cas,gc_upper_bound,gc_lower_bound):
             if gc_content < gc_lower_bound:
                 at_removal_count += 1
                 continue
+
             index += 1
-            if grna_counter.get(grna[2]):
-                grna_counter[grna[2]].append([index,'-'])
-            else:
-                grna_counter[grna[2]] = [[index,'-']]
             grna_dict_list.append({})
             grna_dict = grna_dict_list[-1]
             grna_dict['chrom'] = seq_name
             grna_dict['chromStart'] = grna[0]
             grna_dict['chromEnd'] = grna[1]
+
             # time to create the reverse complements of each sequence
             # these will still be reported as the start and stop indices of the sense \
             # sequence in the .bed file, though these are the antisense sequences
@@ -231,19 +245,28 @@ def grna_finder(fasta_dict,cas,gc_upper_bound,gc_lower_bound):
                 before_com_seq[nt_index] = reverse_nt[before_com_seq[nt_index]]
             com_grna_seq = ''.join(before_com_seq)
             rev_grna_seq = com_grna_seq[::-1]
+
+            # now we've created the reverse complements, we can check the dictionary \
+            # for same sequence gRNAs and add their indices if there is overlap
+            if grna_counter.get(rev_grna_seq):
+                grna_counter[rev_grna_seq].append([index,'-'])
+            else:
+                grna_counter[rev_grna_seq] = [[index,'-']]
+
             grna_dict['grna_seq'] = rev_grna_seq
             grna_dict['strand'] = '-'
             before_com_pam = list(grna[3])
             # get the antisense for the PAM as well
+
             for nt_index in range(len(before_com_pam)):
                 before_com_pam[nt_index] = reverse_nt[before_com_pam[nt_index]]
             com_pam_seq = ''.join(before_com_pam)
             rev_pam_seq = com_pam_seq[::-1]
             grna_dict['pam'] = rev_pam_seq
-            grna_dict['name'] = cas
+            #grna_dict['name'] = ca
 
         # delete 100% gRNA matches by first populating a list of deletion indices
-        print('\nPopulating list of',cas,'gRNAs that 100% overlap... \ncuz who needs them, amiright?\n')
+        print('\nPopulating list of gRNAs that 100% overlap... \ncuz who needs them, amiright?\n')
         deletion_index = []
         for grna_seq in grna_counter:
             seq_count = grna_counter[grna_seq]
@@ -254,8 +277,8 @@ def grna_finder(fasta_dict,cas,gc_upper_bound,gc_lower_bound):
         # highest to lowest
         deletion_index.sort(reverse=True)
 
-        print('Removed',gc_removal_count,cas,'gRNAs that exceed GC upper boundary:',gc_upper_bound)
-        print('Removed',at_removal_count,cas,'gRNAs that exceed GC lower boundary:',gc_lower_bound)
+        print('Removed',gc_removal_count,'gRNAs that exceed GC upper boundary:',gc_upper_bound)
+        print('Removed',at_removal_count,'gRNAs that exceed GC lower boundary:',gc_lower_bound)
 
             # delete the largest index first and work through the rest
     for index in deletion_index:
@@ -267,36 +290,129 @@ def grna_finder(fasta_dict,cas,gc_upper_bound,gc_lower_bound):
     return grna_dict_list
 
 
-def mismatch_scoring(grna_dict_list,cas):
+# this function scores gRNAs by comparing each to all others for mismatches within the constraints
+# in cas protein .tsv
+def mismatch_scoring(grna_dict_list,cas,min_score):
+    print('Scoring gRNAs...',str(len(grna_dict_list)**2),'iterations.')
 
-    prox_start = cas[4][0]
-    prox_end = cas[4][1]
-    mid_start = cas[5][0]
-    mid_end = cas[5][1]
-    dis_start = cas[6][0]
-    dis_end = cas[6][1]
-    for grna1 in grna_dict_list:
+    # simplifying boundary values from cas protein information list
+    prox_start = cas[3][0]
+    prox_end = cas[3][1]
+    mid_start = cas[4][0]
+    mid_end = cas[4][1]
+    dis_start = cas[5][0]
+    dis_end = cas[5][1]
+
+    # for each guide RNA, give it a starting score of 100
+    for index1 in range(len(grna_dict_list)):
+        grna1 = grna_dict_list[index1]
         score = 100
-        if cas[2] is "5'":
-            prox_start = cas[4][0]
-            prox_end = cas[4][1]
-            mid_start = cas[5][0]
-            mid_end = cas[5][1]
-            dis_start = cas[6][0]
-            dis_end = cas[6][1]
+
+        # if the orientation of the PAM sequence is 5', sort the proximal, middle \
+        # and distal sequences accordingly, same with 3'
+        if cas[1] == "5'":
             prox1 = grna1['grna_seq'][prox_start:prox_end]
             mid1 = grna1['grna_seq'][mid_start:mid_end]
             dis1 = grna1['grna_seq'][dis_start:dis_end]
-        elif cas[2] is "3'":
-            prox_start = cas[4][
-        for grna2 in grna_dict_list:
+        elif cas[1] == "3'":
+            temp_rev = grna1['grna_seq'][::-1]
+            prox1_rev = grna1['grna_seq'][prox_start:prox_end]
+            mid1_rev = grna1['grna_seq'][mid_start:mid_end]
+            dis1_rev = grna1['grna_seq'][dis_start:dis_end]
+            prox1 = prox1_rev[::-1]
+            mid1 = mid1_rev[::-1]
+            dis1 = dis1_rev[::-1]
+
+        # for all other gRNAs, if the score is 0 at the start, just stop it
+        for index2 in range(len(grna_dict_list)):
+            if score <= 0:
+                break
+            grna2 = grna_dict_list[index2]
+
+            # this 'if' checks to make sure its not comparing a sequence to itself
             if grna1 != grna2:
+                # getting the proximal, middle, and distal sequences for the second gRNA
+                if cas[1] == "5'":
+                    prox2 = grna2['grna_seq'][prox_start:prox_end]
+                    mid2 = grna2['grna_seq'][mid_start:mid_end]
+                    dis2 = grna2['grna_seq'][dis_start:dis_end]
+                elif cas[1] == "3'":
+                    temp_rev = grna2['grna_seq'][::-1]
+                    prox2_rev = grna2['grna_seq'][prox_start:prox_end]
+                    mid2_rev = grna2['grna_seq'][mid_start:mid_end]
+                    dis2_rev = grna2['grna_seq'][dis_start:dis_end]
+                    prox2 = prox2_rev[::-1]
+                    mid2 = mid2_rev[::-1]
+                    dis2 = dis2_rev[::-1]
+
+                # consecutive nucleotide mismatches can completely nullify an off-target \
+                # so let's setup a counter to check for that
+                consec_nt_count = 0
+
+                # also, let's make a counter for proximal mismatches
+                prox_mm_count = 0
+                # check each nucleotide in each sequence and compare to see if they mismatch
+                # if they do
+                for index in range(len(prox1)):
+                    if prox1[index] != prox2[index]:
+                        prox_mm_count += 1
+                        consec_nt_count += 1
+                        if consec_nt_count > 1 and cas[8] == 'n':
+                            break
+                    else:
+                        consec_nt_count = 0
+                if consec_nt_count > 1 and cas[8] == 'n':
+                    continue
+                if prox_mm_count > int(cas[7]):
+                    continue
+                mid_mm_count = 0
+                for index in range(len(mid1)):
+                    if mid1[index] != mid2[index]:
+                        mid_mm_count += 1
+                        consec_nt_count += 1
+                        if consec_nt_count > 1 and cas[8] == 'n':
+                            break
+                    else:
+                        consec_nt_count = 0
+                if consec_nt_count > 1 and cas[8] == 'n':
+                    continue
+                dis_mm_count = 0
+                for index in range(len(dis1)):
+                    if dis1[index] != dis2[index]:
+                        dis_mm_count += 1
+                        consec_nt_count += 1
+                        if consec_nt_count > 1 and cas[8] == 'n':
+                            break
+                    else:
+                        consec_nt_count = 0
+                if consec_nt_count > 1 and cas[8] == 'n':
+                    continue
+                if prox_mm_count + mid_mm_count + dis_mm_count > int(cas[6]):
+                    continue
+                subtract_score = 100/(cas[9]*prox_mm_count+cas[10]*mid_mm_count+cas[11]*dis_mm_count)
+                score -= subtract_score
+        if score < 0:
+            grna_dict_list[index1]['score'] = 0
+        else:
+            grna_dict_list[index1]['score'] = score
+
+    if min_score > 0:
+        print('\nPopulating list of gRNAs below minimum score ('+str(min_score)')')
+        del_list = []
+        for index in grna_dict_list:
+            if grna_dict_list[index]['score'] < min_score:
+                del_list.append(index)
+        print('Removing gRNAs below minimum score.')
+        for del_index in del_list:
+            del grna_dict_list[del_index]
+
+    return grna_dict_list
 
 
 def grna_dict2bed(fasta,hits):
 
     # prepare the header for the output bed string
-    output_string = '#chrom\tchromStart\tchromEnd\tguideSeq\tstrand\tpam\tname'
+    output_string = '#chrom\tchromStart\tchromEnd\tguideSeq\tstrand\tpam\tscore'
     # name the output file by concatenating the following to the end of the fasta
     with open(fasta+'_grna_hits.bed', 'w') as output_file:
         for grna in hits:
@@ -307,11 +423,14 @@ def grna_dict2bed(fasta,hits):
             output_string += '\t'+grna['grna_seq']
             output_string += '\t'+grna['strand']
             output_string += '\t'+grna['pam']
-            output_string += '\t'+grna['name']
+           # output_string += '\t'+grna['name']
+            output_string += '\t'+str(grna['mismatch_score'])
         output_file.write(output_string)
 
 
-cas_dict = cas2dict(args.cas_list,args.cas)
+cas_list = cas2dict(args.cas_list,args.cas)
 fasta_dict = fasta2dict(args.fasta)
-hits = grna_finder(fasta_dict,cas_dict,float(args.gc_upper),float(args.gc_lower))
-grna_dict2bed(args.fasta,hits)
+hits = grna_finder(fasta_dict,cas_list,float(args.gc_upper),float(args.gc_lower))
+scored = mismatch_scoring(hits,cas_list,args.score)
+grna_dict2bed(args.fasta,scored)
+
