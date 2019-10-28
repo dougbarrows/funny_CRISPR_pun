@@ -4,11 +4,12 @@ import sys
 import os
 import re
 
-def main():
+# Function that takes gff3filename as input
+# Outputs a bed file for the TSS
+
+def gff3_to_TSSbed(gff3filename):
 
 	
-	gff3filename = "Homo_sapiens.GRCh38.98.chromosome.9.gff3"
-
 	# Determine the output file name
 	outputfilename = os.path.splitext(gff3filename)[0]+".TSS.bed"
 
@@ -30,6 +31,7 @@ def main():
 				data = dict(zip(fields,line.split('\t')))		
 				# only keep lines that are of type "gene"
 				# print relevant columns to file
+
 				if data['genetype'] == 'gene':
 
 					attributes = data['attributes'].split(";")
@@ -41,5 +43,10 @@ def main():
 					
 	
 
+def main():
+	
+	gff3filename = "Homo_sapiens.GRCh38.98.gff3"
+	gff3_to_TSSbed(gff3filename)
+	
 if __name__ == "__main__":
 	main()
