@@ -13,7 +13,7 @@ import gzip
 from gff3_to_TSSbed import gff3_to_TSSbed
 from genelist_to_TSS_bed import TSSs_of_interest_bed
 
-usage = '\n\n\tusage: {} \n\n\n'
+usage = '\n\n\tusage: {} \n\n\n'.format(sys.argv[0])
 
 # Initial command line checks. The current version allows 2 inputs: gene name (this can be a single gene entered at the command line or a list of genes in a .txt file), species (this should be entered in lower case and using an underscore for any spaces -- consistent with the Ensembl file)
 varIns = 3
