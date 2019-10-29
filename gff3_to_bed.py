@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 
-import sys
-import os
-import re
+###################################################
+# Function: Takes gff3 file input, returns a bed file
+##################################################
+def gff3_to_bed(gff3filename):
 
-# Function that takes gff3filename as input
-# Outputs a bed file for the TSS
-
-def gff3_to_TSSbed(gff3filename, outputfolder="."):
-
+	import sys
+	import os
+	import re
 	
 	# Determine the output file name
-	outputfilename = outputfolder+"/"+os.path.splitext(gff3filename)[0]+".TSS.bed"
+	outputfilename = os.path.splitext(gff3filename)[0]+".bed"
 
 	# fields in a gff3 files
 	field_str = "seqid source genetype start end score strand phase attributes"
@@ -37,24 +36,29 @@ def gff3_to_TSSbed(gff3filename, outputfolder="."):
 					attributes = data['attributes'].split(";")
 					gene_name = attributes[0]+";"+attributes[1]
 					strand = data['strand']
-										
 					bed_line = "chr{}\t{}\t{}\t{}\t{}\t{}\n"
 					outputfile.write(bed_line.format(data['seqid'], data['start'], data['start'], gene_name, '', strand))
-	
-	# Tell user where the TSS file was outputted
-	print("\nTSSs matching all genes were printed to the following file in bedfile format:\n\t{}\n".format(outputfilename))
-	return outputfilename
+				
+				elif data['genetype'] == 'mRNA':
+						
+					attributes = data['attributes'].split(";")
+					gene_name = attributes[0] + ";" + attributes[1] + ";" + attributes[2]
+					strand = data['strand']
+					bed_line = "chr{}\t{}\t{}\t{}\t{}\t{}\n"
+					outputfile.write(bed_line.format(data['seqid'], data['start'], data['start'], gene_name, '', strand))
+
 
 def main():
 
 	import sys
-	if len(sys.argv) < 2:
-		print("\n\t!!!PROGRAM USAGE ERROR!!!\n")
-		print("\t{} annotationfile.gff3\n".format(sys.argv[0]))
-		sys.exit(1)
 	
+	if len(sys.argv) < 2:
+		print("\n\t!!!Program usage error!!!")
+		print("\tUsage: {} annotationfile.gff3\n".format(sys.argv[0]))
+		sys.exit(1)
+
 	gff3filename = sys.argv[1]
-	gff3_to_TSSbed(gff3filename)
+	gff3_to_bed(gff3filename)
 	
 if __name__ == "__main__":
 	main()

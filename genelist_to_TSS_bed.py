@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
 
-import sys
-import os
-import re
-import argparse
 
 #################################################
 # FUNCTION: Check if a line is a single string
 #################################################
 def singlestring(line):
-	
+	import re
 	if len(re.findall(r"(\w+)",line)) > 1:
 		return False
 	else:
@@ -18,8 +14,6 @@ def singlestring(line):
 #################################################################
 # FUNCTION: Make a dictionary from a bed file (keys are ENS IDs)
 #################################################################
-
-
 def bedfile_to_dict_ENS(bedfile):
 	gene_dict = {}
 
@@ -45,8 +39,9 @@ def bedfile_to_dict_ENS(bedfile):
 ##############################################################################
 # FUNCTION: Make a dictionary from a bed file (keys are gene names)
 ##############################################################################
-
 def bedfile_to_dict_genename(bedfile):
+	
+	import re
 	gene_dict = {}
 
 	with open(bedfile, 'r') as fo_bed: # open bed file and parse through
@@ -101,7 +96,9 @@ def gene_to_bedline(gene, gene_dict):
 ############################################################################################
 # FUNCTION: Given a TSS bed file and a list of genes, output only TSSs of genes of interest
 ############################################################################################
-def TSSs_of_interest_bed(TSSbedfile, genelistfile):
+def TSSs_of_interest_bed(TSSbedfile, genelistfile, outputfolder="."):
+
+	import os
 
 	# Make a list of genes from all the user-provided info
 	genelist = []
@@ -126,7 +123,7 @@ def TSSs_of_interest_bed(TSSbedfile, genelistfile):
 		gene_dict = bedfile_to_dict_genename(TSSbedfile)
 
 	# Go through the list of genes, make a new bed file with the TSSs of interest
-	outputfilename = os.path.splitext(os.path.basename(TSSbedfile))[0]+".genesofinterest.bed"
+	outputfilename = outputfolder+"/"+os.path.splitext(os.path.basename(TSSbedfile))[0]+".genesofinterest.bed"
 
 	unmappedlist = [] # list of unmapped genes
 	with open(outputfilename, 'w') as fo_output:
@@ -137,15 +134,19 @@ def TSSs_of_interest_bed(TSSbedfile, genelistfile):
 			else:
 				unmappedlist.append(gene)
 	print("\nThe TSSs that match your genes of interest were printed to the following bedfile:\n\t{}\n".format(outputfilename)) 
+	
 	# Print note to user if there were any unmapped gene names / IDs
 	# Print out these genes to a new file so user can check the unmapped names
 	unmappedcount = len(unmappedlist)
 	if unmappedcount > 0:
-		unmappedgenesfile =os.path.splitext(os.path.basename(genelistfile))[0]+".unmappedgenes.txt"
+		unmappedgenesfile = outputfolder+"/"+os.path.splitext(os.path.basename(genelistfile))[0]+".unmappedgenes.txt"
 		with open(unmappedgenesfile, 'w') as fo_unmapped:
 			for unmappedgene in unmappedlist:
 				fo_unmapped.write(gene+"\n")
 		print("\nNOTE: Your genelist had {} unmapped genes.\nThese genes are listed in {}.\n".format(unmappedcount, unmappedgenesfile))
+
+	# Return outputfilename
+	return outputfilename
 
 #####################
 # Main function
@@ -155,6 +156,7 @@ def main():
 	
 	from gff3_to_TSSbed import gff3_to_TSSbed
 	import sys
+	import os
 
 	if len(sys.argv) < 3:
 		usagemessage = "\t{:20} {} annotationfile.gff3 {}"
