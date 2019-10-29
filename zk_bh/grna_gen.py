@@ -310,7 +310,7 @@ def mismatch_scoring(grna_dict_list,cas,min_score,min_index,max_index):
         grna1 = grna_dict_list[index1]
         if grna1['chromStart'] < min_index:
             continue
-        if grna1['chromEnd'] > max_index:
+        if grna1['chromEnd'] > max_index and max_index != -1:
             continue
         score = 100
 
@@ -476,7 +476,7 @@ def exit(logo):
             print(line,end='')
 
 
-def hunters(cas_file,cas_prot,fasta,score,gc_lower,gc_upper,min_index,max_index):
+def denovoGuideRnaAnno(cas_file,cas_prot,fasta,gc_lower,gc_upper,min_index,max_index,score):
 
     start = time.time()
     start_time = datetime.datetime.now()
@@ -503,8 +503,6 @@ def hunters(cas_file,cas_prot,fasta,score,gc_lower,gc_upper,min_index,max_index)
             break
         except FileNotFoundError:
             break
-
-    sys.exit(0)
 
 
 def main(args):
