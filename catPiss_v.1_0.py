@@ -50,7 +50,7 @@ def downloadGff3(speciesName,outputDir):
 #########-Start-#################
 # Function: Download Fasta file from Ensembl .fa ftp site
 
-def downloadFasta(speciesName):
+def downloadFasta(speciesName,outputDir):
 	fileList = 'wget ' + '\'' + 'ftp://ftp.ensembl.org/pub/release-98/fasta/' + speciesName + '/dna/CHECKSUMS' + '\''
 	fileList_run = subprocess.run(fileList, shell = True, stdout = subprocess.PIPE, stderr=subprocess.PIPE)
 	if fileList_run.returncode != 0:
@@ -69,9 +69,9 @@ def downloadFasta(speciesName):
 		print("FAILED! Either your species is not available or the species did not match. Please check the Ensembl FTP site and try again")
 		exit(2)
 	else:
-		contents=os.listdir(currPath)
-		for files in content:
-			if files.endswith == 'dna_rm.toplevel.fa.gz':
+		contents=os.listdir(outputDir)
+		for files in contents:
+			if files.endswith('dna_rm.toplevel.fa.gz'):
 				fastaGz = files
 				with gzip.open(fastaGz,'rb') as f_in:
 					with open(fastaGz[:-3],'wb') as f_out:
@@ -79,7 +79,7 @@ def downloadFasta(speciesName):
 		newName = fastaGz[:-3]
 		os.remove(fastaGz)
 		os.remove('CHECKSUMS')
-		print('{} was successfully downloaded.'.format(newName,newPath))
+		print('\n\n{} was successfully downloaded.'.format(newName) )
 
 ##########-End-###################
 
@@ -87,22 +87,28 @@ def downloadFasta(speciesName):
 # Function: Generate user inputs for gRNA generation
 
 def userInputs():
-	print('/n/nWhat is your GC content lower bound (decimal form)?')
-	gc_lower = input()
+	print('\nWhat is your GC content lower bound (percent decimal form)?')
+	gc_lower = float( input() )
 	if gc_lower > 1:
-		print('Your GC lower bound needs to be a decimal!')
+		print('\nYour GC lower bound needs to be a percent decimal less than 1 and greater than or equal to 0!')
 		exit(2)
-	print('What is your GC content upper bound (decimal form)?')
-	gc_upper = input()
-	if gc_upper > 1 or gc_upper < gc_lower:
-		print('Your GC upper bound needs to be a decimal and greater than or equal to your lower bound!')
+	print('\nWhat is your GC content upper bound (decimal form)?')
+	gc_upper = float( input() )
+	if (gc_upper > 1) or (gc_upper < gc_lower):
+		print('\nYour GC upper bound needs to be a decimal and greater than or equal to your lower bound!')
 		exit(2)
-	print('What is the minimum chromosome range for your search (integer position)?')
-	minChr = input()
-	print('What is the maximum chromosome range for your search (integer position)?')
-	maxChr = input()
-	print('What score cut-off would you like to use (range: 0-100)?')
-	score = input()
+	print('\nWhat is the minimum chromosome position for your search (integer position)?')
+	minChr = int( input() )
+	print('\nWhat is the maximum chromosome position for your search (integer position)?')
+	maxChr = int( input() )
+	if minChr > maxChr:
+		print('\nThe maximum chromosome position must be larger than the minimum chromosome position!')
+		exit(2)
+	print('\nWhat score cut-off would you like to use (range: 0-100)?')
+	score = int( input() )
+	if (score < 0) or (score > 100):
+		print('\nThe score value must be between 0 and 100!')
+		exit(2)
 
 	inputList = [gc_lower, gc_upper, minChr, maxChr, score]
 	return inputList
@@ -110,7 +116,7 @@ def userInputs():
 ###########-end-####################
 def main():
 	parser = argparse.ArgumentParser(description="""
-		This program identifies a list of guide RNAs for CRISPR-based gene attenuation or promotion\n
+		The 'catPiss' program identifies a list of guide RNAs for CRISPR-based gene attenuation or promotion\n
 		for a given list of genes and associated species. The two required inputs are a gene or a \n
 		list of genes and the species of interest (see pattern requirements below). In addition, the \n
 		user must also indicate either deNovo or use of a reference table. The output is a\n
@@ -119,9 +125,10 @@ def main():
 		""")
 	parser.add_argument('geneNames', help='The specific gene(s) of interest entered as a string or the name of the file with the list of genes.')
 	parser.add_argument('speciesName', help='The name of the target species. Uses underscore for spaces (e.g., homo_sapiens)')
+	parser.add_argument('targetMode' , choices = ['activation', 'interference', 'custom'], help='User determines if goal is gene activation, gene interference, or a custom mode. This argument sets the upstream and downstream boundaries relative to TSS. If "custom" is selected, then "-u" and "-d" also need to be defined')
 	parser.add_argument('-o', '--output', help='Optional: supply output file directory name, otherwise write to program default', dest = 'out')
-	parser.add_argument('-u', '--upstream', help='Optional: supply distance upstream of the TSS site to check for gRNAs', dest = 'upStream')
-	parser.add_argument('-d', '--downstream', help='Optional: supply distance downstream of the TSS site to check for gRNAs', dest = 'downStream')
+	parser.add_argument('-u', '--upstream', type=int, help='Optional: supply distance upstream of the TSS site to check for gRNAs', dest = 'upStream')
+	parser.add_argument('-d', '--downstream', type=int, help='Optional: supply distance downstream of the TSS site to check for gRNAs', dest = 'downStream')
 	parser.add_argument('-s', '--sortby', help="Optional: if 'de novo' is 'True' sort by is an option for sorting by score using either 'Doench2016_perc', 'Doench2016_score', 'Moreno_Matos_perc', 'Moreno_Matos_score', 'MIT_specificity'", dest = 'sortBy')
 	parser.add_argument('-n', '--deNovo', help="Choice of using a de novo table from this program ('True')", dest = 'deNovoVar')
 	parser.add_argument('-f', '--refTable', help="User provided reference table of scored gRNAs.", dest = 'refTableFile')
@@ -133,6 +140,8 @@ def main():
 	geneNames = args.geneNames
 	speciesName = args.speciesName
 	speciesName = speciesName.lower()
+	targetModeIn = args.targetMode
+		
 	if args.deNovoVar:
 		if args.casTypeData:
 			casType = args.casTypeData
@@ -148,13 +157,15 @@ def main():
 		if args.refTableFile:
 			refTable = args.refTableFile
 		else:
-			print('You must provide a reference table!')
+			print("You must provide a reference table ('-f') or choose deNovo ('-n')!")
 			exit(1)
 	if args.deNovoVar == False and args.refTableFile == False:
-		print('You must input either a request for a deNovo analysis or use a reference table!')
+		print('You must input either a request for a deNovo analysis ("-n") or use a reference table ("-f")!')
 		exit(1)
 	if args.cloneDest:
 		cloningStrat = args.cloneDest
+	else:
+		cloningStrat = 'pX330'
 
 	currPath = os.getcwd()							# current path
 	sourceDir = currPath + '/' + speciesName	# directory that contains the sources files for the species
@@ -178,88 +189,71 @@ def main():
 			if files == 'selectGrnas.bed':
 				GRNA = True
 				nameGrna = files
-		print(TSS, FASTA, GRNA)
 		if (TSS == False) and (FASTA == False) and (GRNA == False):
-			print("""\n\nYou are missing all of the necessary files.\n
-						It will take quite a bit of time (i.e., > 1 day
-						to download them and generate the necessary files.\n\n
-						Would you like to proceed (yes/no)?""")
+			print("""\n\nYou are missing all of the necessary files.\nIt will take quite a bit of time (i.e., > 1 day)\nto download them and generate the necessary files.\n\nWould you like to proceed (yes/no)?""")
 			userIn1 = input()
 			if userIn1 == 'yes':
 				os.chdir(sourceDir)
-				print('OK. Sit back. Relax. This is going to take a while!')
-				print('A TSS reference file is not present. Retrieving necessary files from the Ensembl ftp download site.')
-				downloadGff3(speciesName)
-				print('A fasta reference file is not present. Retrieving necessary files from the Ensemble ftp download site.')
-				downloadFasta(speciesName)
-				print('Generating reference guide RNA .bed file.')
+				print('\nOK. Sit back. Relax. This is going to take a while!')
+				print('\nA TSS reference file is not present. Retrieving necessary files from the Ensembl ftp download site.')
+				downloadGff3(speciesName,sourceDir)
+				print('\nA fasta reference file is not present. Retrieving necessary files from the Ensemble ftp download site.')
+				downloadFasta(speciesName,sourceDir)
+				print('\nGenerating reference guide RNA .bed file.')
 				userIn = userInputs()
 				denovoGuideRnaAnno(nameFasta, casType, casFile, userIn[0], userIn[1], userIn[2], userIn[3], userIn[4] )
 			else:
-				print('Ok. Come back perhaps when you have more time.')
+				print('\nOk. Come back perhaps when you have more time.')
 				exit(2)
 		elif (TSS == True) and (FASTA == False) and (GRNA == False):
-			print("""\n\nYou are missing some really large files.\n
-						It will take quite a bit of time (i.e., > 1 day
-						to download them and generate the necessary files.\n\n
-						Would you like to proceed (yes/no)?""")
+			print("""\n\nYou are missing some really large files.\nIt will take quite a bit of time (i.e., > 1 day)\nto download them and generate the necessary files.\n\nWould you like to proceed (yes/no)?""")
 			userIn1 = input()
 			if userIn1 == 'yes':
 				os.chdir(sourceDir)
-				print('OK. Sit back. Relax. This is going to take a while!')
-				print('A fasta reference file is not present. Retrieving necessary files from the Ensemble ftp download site.')
-				downloadFasta(speciesName)
-				print('Generating reference guide RNA .bed file.')
+				print('\nOK. Sit back. Relax. This is going to take a while!')
+				print('\nA fasta reference file is not present. Retrieving necessary files from the Ensemble ftp download site.')
+				downloadFasta(speciesName,sourceDir)
+				print('\nGenerating reference guide RNA .bed file.')
 				userIn = userInputs()
 				denovoGuideRnaAnno(nameFasta, casType, casFile, userIn[0], userIn[1], userIn[2], userIn[3], userIn[4] )
 			else:
-				print('Ok. Come back perhaps when you have more time.')
+				print('\nOk. Come back perhaps when you have more time.')
 				exit(2)
 		elif (TSS == True) and (FASTA == True) and (GRNA == False):
-			print("""\n\nYou are missing a really big file.\n
-						It will take quite a bit of time (i.e., > 1 day
-						to download them and generate the necessary files.\n\n
-						Would you like to proceed (yes/no)?""")
+			print("""\n\nYou are missing a really big file.\nIt will take quite a bit of time (i.e., > 1 day) to generate\nthe necessary files.\n\nWould you like to proceed (yes/no)?""")
 			userIn1 = input()
 			if userIn1 == 'yes':
 				os.chdir(sourceDir)
-				print('OK. Sit back. Relax. This is going to take a while!')
-				print('Generating reference guide RNA .bed file.')
+				print('\nOK. Sit back. Relax. This is going to take a while!')
+				print('\nGenerating reference guide RNA .bed file.')
 				userIn = userInputs()
 				denovoGuideRnaAnno(nameFasta, casType, casFile, userIn[0], userIn[1], userIn[2], userIn[3], userIn[4] )
 			else:
-				print('Ok. Come back perhaps when you have more time.')
+				print('\nOk. Come back perhaps when you have more time.')
 				exit(2)
 		elif (TSS == False) and (FASTA == True)  and (GRNA == False):
-			print("""\n\nYou are missing a large set  of the necessary files.\n
-						It will take quite a bit of time (i.e., > 1 day
-						to download them and generate the necessary files.\n\n
-						Would you like to proceed (yes/no)?""")
+			print("""\n\nYou are missing a large set  of the necessary files.\nIt will take quite a bit of time (i.e., > 1 day)\nto download them and generate the necessary files.\n\nWould you like to proceed (yes/no)?""")
 			userIn1 = input()
 			if userIn1 == 'yes':
 				os.chdir(sourceDir)
-				print('OK. Sit back. Relax. This is going to take a while!')
-				print('A TSS reference file is not present. Retrieving necessary files from the Ensembl ftp download site.')
-				downloadGff3(speciesName)
-				print('Generating reference guide RNA .bed file.')
+				print('\nOK. Sit back. Relax. This is going to take a while!')
+				print('\nA TSS reference file is not present. Retrieving necessary files from the Ensembl ftp download site.')
+				downloadGff3(speciesName,sourceDir)
+				print('\nGenerating reference guide RNA .bed file.')
 				userIn = userInputs()
 				denovoGuideRnaAnno(nameFasta, casType, casFile, userIn[0], userIn[1], userIn[2], userIn[3], userIn[4] )
 			else:
 				print('Ok. Come back perhaps when you have more time.')
 				exit(2)
 		elif (TSS == False) and (FASTA == True) and (GRNA == True):
-			print("""You are missing a relatively small file.
-						It will take just a little bit of time (i.e., 
-						(i.e., a couple of minutes) to download and 
-						generate the necessary file.\n
-						Would you like to proceed (yes/no)?""")
+			print("""\n\nYou are missing a relatively small file.\nIt will take just a little bit of time (i.e., a couple of minutes) to download and\ngenerate the necessary file.\n\nWould you like to proceed (yes/no)?""")
 			userIn1 = input()
 			if userIn1 == 'yes':
 				os.chdir(sourceDir)
-				print('A TSS reference file is not present. Retrieving necessary files from the Ensembl ftp download site.')
+				print('\nA TSS reference file is not present. Retrieving necessary files from the Ensembl ftp download site.')
 				downloadGff3(speciesName,sourceDir)
 			else:
-				print('Ok. Come back perhaps when you have more time.')
+				print('\nOk. Come back perhaps when you have more time.')
 				exit(2)
 		elif (TSS == True) and (GRNA == True):
 				print('The necessary files are here.')
@@ -276,26 +270,35 @@ def main():
 		if files.endswith('.TSS.bed'):
 			inLocFile = sourceDir+'/' + files
 			geneNamesIn = currPath + '/' + geneNames
-			TSSs_of_interest_bed(inLocFile, geneNamesIn)	# this is generating a new .bed file of TSSs specific to the desired genes
+			TSSs_of_interest_bed(inLocFile, geneNamesIn, outputDir)	# this is generating a new .bed file of TSSs specific to the desired genes
 			
 			overlapInput = files[:-3]+'genesofinterest.bed'
-			gRNAs = currPath + '/' + speciesName + '/selectGrnas.bed'
-			if args.upStream:
-				upStrIn = upStr
-			else:
-				upStrIn = 100
-			if args.downStream:
-				downStrIn = downStr
-			else:
-				downStrIn = 50
+			# determining which gRNA reference table to used based on user input at command line
+			if args.deNovoVar:
+				gRNAs = currPath + '/' + speciesName + '/selectGrnas.bed'
+			elif args.refTableFile:
+				gRNAs = refTable
+			
+			# initializing paramter values or using default values for 'range_overlap' function
+			if targetModeIn == 'activation':
+				upStrIn = 400
+				downStrIn = -50
+			elif targetModeIn == 'interference':
+				upStrIn = 50
+				downStrIn = 100
+			elif targetModeIn == 'custom':
+				upStrIn =  args.upStream
+				downStrIn = args.downStream
+			
 			if args.sortBy:
 				sortByIn = args.sortBy
 			else:
 				sortByIn = 'Doench2016'
 			
 			temp = os.getcwd()
-			print(temp)			
-			range_overlap(overlapInput, gRNAs, outputDir +'/overLapGRnas_OUTPUT', upStrIn, downStrIn, sortByIn, args.deNovoVar, cloningStrat)
+			print(upStrIn, downStrIn,sortByIn)
+			print(overlapInput)
+			range_overlap(outputDir+'/'+overlapInput, gRNAs, outputDir+'/overLapGRnas_OUTPUT', upStrIn, downStrIn, sortByIn, args.deNovoVar, cloningStrat)
 	 
 	
 	sys.exit(0)
