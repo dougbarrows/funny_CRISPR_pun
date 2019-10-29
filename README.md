@@ -1,5 +1,16 @@
 # funny_CRISPR_pun
-PFB 2019 Final Project
+# PFB 2019 Final Project
+
+## Group members:
+
+- Matthew Waas (TA)
+
+- Doug Barrows
+- John Werner
+- Hunter Underhill
+- Mina Kojima
+- Becky Hennessey
+- Zach Konkel
 
 Our project is centered around providing users with a set of possible guide RNA locations
 for CRISPRa or CRISPRi given a set of gene IDs. 
