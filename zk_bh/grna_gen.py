@@ -1,20 +1,5 @@
 #! /usr/bin/env python3
 
-
-import argparse, re, datetime, time
-
-parser = argparse.ArgumentParser(description='Imports fasta, extracts possible gRNAs')
-parser.add_argument('-f','--fasta',required=True,help='Fasta file to extract gRNAs from')
-parser.add_argument('-s','--score',default=0,help='Lower boundary for off target scores, default = 0')
-parser.add_argument('-c','--cas',required=True,help='Cas protein to extract from tab delimitted list of Cas protein parameters - must exactly match name')
-parser.add_argument('--cas_list',required=True,help='Tab delimitted list of Cas protein parameters')
-parser.add_argument('--gc_upper',default=.8,help='GC content upper bound (in decimal) of gRNA sequences to not consider, default = .8')
-parser.add_argument('--gc_lower',default=.1,help='GC content lower bound (in decimal) of gRNA sequences to not consider, defulat = .1')
-parser.add_argument('--min_index',default=0,help='Only calculates scores for sequences starting at this index - can save a lot of time.')
-parser.add_argument('--max_index',default=-1,help='Only calculates scores for sequences ending at this index - can save a lot of time.')
-args = parser.parse_args()
-
-
 def cas2dict(cas_prot_tsv,cas):
 
     # import a cas protein tsv to get cas specific information
@@ -505,7 +490,21 @@ def denovoGuideRnaAnno(cas_file,cas_prot,fasta,gc_lower,gc_upper,min_index,max_i
             break
 
 
-def main(args):
+def main():
+
+    import argparse, re, datetime, time
+
+    parser = argparse.ArgumentParser(description='Imports fasta, extracts possible gRNAs')
+    parser.add_argument('-f','--fasta',required=True,help='Fasta file to extract gRNAs from')
+    parser.add_argument('-s','--score',default=0,help='Lower boundary for off target scores, default = 0')
+    parser.add_argument('-c','--cas',required=True,help='Cas protein to extract from tab delimitted list of Cas protein parameters - must exactly match name')
+    parser.add_argument('--cas_list',required=True,help='Tab delimitted list of Cas protein parameters')
+    parser.add_argument('--gc_upper',default=.8,help='GC content upper bound (in decimal) of gRNA sequences to not consider, default = .8')
+    parser.add_argument('--gc_lower',default=.1,help='GC content lower bound (in decimal) of gRNA sequences to not consider, defulat = .1')
+    parser.add_argument('--min_index',default=0,help='Only calculates scores for sequences starting at this index - can save a lot of time.')
+    parser.add_argument('--max_index',default=-1,help='Only calculates scores for sequences ending at this index - can save a lot of time.')
+    args = parser.parse_args()
+
 
     start = time.time()
     start_time = datetime.datetime.now()
@@ -528,4 +527,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-    main(args)
+    main()
