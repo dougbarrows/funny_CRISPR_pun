@@ -36,11 +36,12 @@ def cloning_parameters(cloningstrategy):
 	file_with_cloning_info = "cloningstrategy_primers.txt"
 	if not os.path.isfile(file_with_cloning_info):
 		print("\n\tMissing file: 'cloningstrategy_primers.txt'\n")
-
+	potential_cloning_strategies = []
 	with open(file_with_cloning_info,'r') as fo:
 		for line in fo:
 			line = line.rstrip()
 			strategy_info = line.split("\t")
+			potential_cloning_strategies.append(strategy_info[0])
 			if cloningstrategy == strategy_info[0]:
 				Grequired = strategy_info[1]
 				p1specs = strategy_info[2]
@@ -52,6 +53,7 @@ def cloning_parameters(cloningstrategy):
 		return (Grequired, p1specs, p2specs)
 	except NameError:
 		print("\n\tError! Could not find cloning strategy {} in the file 'cloningstrategy_primers.txt.'\n".format(cloningstrategy))
+		print("\n\tAvailable cloning strategies: {}\n".format(' '.join(potential_cloning_strategies)))
 
 ########################################################
 # FUNCTION: Returns primers to order given a target site
