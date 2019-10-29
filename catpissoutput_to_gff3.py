@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
+# Last updated: October 29, 2019
+# Author: Mina Kojima
 
-import re 
 
 ##############################################################################
 # FUNCTION: Takes catpiss outputfile as input, outputs a gff3 file for JBrowse
@@ -72,7 +73,9 @@ def convert_catpiss_output_to_gff3(catpiss_output, scoretype, outputfolder='.'):
 	
 
 
-
+#########
+# MAIN
+#########
 
 def main():
 
